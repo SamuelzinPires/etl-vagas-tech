@@ -20,7 +20,8 @@ if response.status_code == 200:
     lista_de_vagas = dados_json['data']
     print("\n--- VAGAS EXTRAÍDAS COM SUCESSO ---\n")
     
-    #passar por cada dicionário (vaga) dentro da lista
+    vagas_extraidas = []
+    #Loop de Extração
     for vaga in lista_de_vagas:
         
         #Pegando os valores exatos usando as chaves 
@@ -28,11 +29,20 @@ if response.status_code == 200:
         empresa = vaga['careerPageName']
         modelo = vaga['workplaceType']
         link = vaga['jobUrl']
-        
-        #Imprimindo um "Cartão" no terminal
-        print(f"📌 Vaga: {titulo}")
-        print(f"🏢 Empresa: {empresa} | 📍 Formato: {modelo}")
-        print(f"🔗 Link: {link}")
-        print("-" * 50) # Imprime uma linha de separação
-#Criando uma lista vazia antes do loop
-vagas_extraidas = []
+        #Imprimindo no terminal só para a gente ver acontecendo
+        print(f"📌 Extraindo: {titulo} |  {empresa}")
+        #mini-dicionário da vaga atual com os dados dinâmicos
+        vaga_atual = {
+            'Titulo': titulo,
+            'Empresa': empresa,
+            'Formato': modelo,
+            'Link': link
+        }
+        vagas_extraidas.append(vaga_atual)
+#Entrega de dados para o pandas 
+    df = pd.DataFrame(vagas_extraidas)
+#Salvar em um Arquivo CSV, na pasta raw | index=False evita que ele crie uma coluna inútil com números de 0 a 10
+    df.to_csv('../data/raw/vagas_csv', index=False, sep=';', encoding='utf-8')
+    print("\n Sucesso! Arquivo 'vagas_gupy.csv' salvo na pasta data/raw/")
+else:
+    print(f" Erro ao acessar a API: Status Code {response.status_code}")
