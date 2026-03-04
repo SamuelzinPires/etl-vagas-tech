@@ -1,7 +1,7 @@
 import pandas as pd    
 
 #ler os dados brutos (Buscando o arquivo na pasta raw)
-df = pd.read_csv('../data/raw/vagas_csv', sep=';')
+df = pd.read_csv('../data/raw/vagas_gupy.csv', sep=';')
 print("Dados originais carregados com sucesso!")
 
 #(Substituindo os valores da coluna 'Formato')
