@@ -1,60 +1,101 @@
-# Pipeline ETL: Extração e Análise de Vagas Tech (Gupy)
+# ETL Vagas Tech: vagas da área de dados na Gupy
 
-Este projeto consiste na construção de um **Pipeline de Dados ETL (Extract, Transform, Load)** completo e automatizado, desenvolvido em Python. O objetivo principal é extrair centenas de vagas da área de tecnologia da plataforma Gupy, tratar os dados para extrair inteligência de negócio e armazená-los num banco de dados relacional.
+Pipeline **ETL (Extract, Transform, Load)** em Python que coleta vagas da área de **dados** na plataforma Gupy, trata os campos com Pandas, carrega o resultado num banco **SQLite** e responde a duas perguntas: quantas vagas existem por nível de senioridade e quais empresas têm mais vagas abertas.
 
-##  Arquitetura do Projeto (Medallion Architecture)
+Na execução registrada (março/2026), a extração trouxe **643 vagas**.
 
-O projeto foi estruturado seguindo as melhores práticas da Engenharia de Dados, dividindo o processo em etapas claras (Camadas Bronze, Prata e Ouro/Análise):
+## Como o pipeline funciona
 
-1. **Extract (`extrator.py`) - Camada Bronze:**
-   - Realiza requisições HTTP na API oculta da Gupy.
-   - Utiliza lógica de **Paginação (offset e limit)** para contornar limites da API e extrair dados em massa (centenas de vagas de uma só vez).
-   - Salva os dados brutos de forma segura no formato `.csv` (`data/raw/`).
+```text
+API JSON da Gupy (busca "dados", 10 vagas por requisição)
+        │  extrator.py: paginação por offset até a API devolver uma página vazia
+        ▼
+data/raw/vagas_gupy.csv            (dado bruto)
+        │  transformador.py: traduz o formato de trabalho e deduz a senioridade
+        ▼
+data/processed/vagas_limpas.csv    (dado tratado)
+        │  carregador.py: DataFrame → tabela "vagas"
+        ▼
+data/processed/banco_de_vagas.db   (SQLite)
+```
 
-2. **Transform (`transformador.py`) - Camada Prata:**
-   - Utiliza a biblioteca **Pandas** para atuar como uma "lavandaria de dados".
-   - Padroniza campos e traduz os modelos de trabalho (on-site, remote, hybrid).
-   - **Regra de Negócio Avançada:** Aplica expressões e o método `.apply()` para varrer os títulos das vagas e deduzir a **Senioridade** exigida (Júnior, Pleno, Sênior).
-   - Salva os dados limpos num novo arquivo (`data/processed/`).
+O `analise.py` lê o CSV tratado e imprime o resumo no terminal.
 
-3. **Load (`carregador.py`):**
-   - Transforma os dados limpos em tabelas relacionais.
-   - Carrega automaticamente o DataFrame do Pandas para um **Banco de Dados SQLite** (`banco_de_vagas.db`), simulando o ambiente de um Data Warehouse real.
+## Etapas
 
-4. **Análise de Dados (`analise.py`):**
-   - Script focado em responder a perguntas de negócio (*Business Intelligence*).
-   - Conta a distribuição de vagas por nível de senioridade e ranqueia as empresas com mais vagas abertas.
+1. **Extract (`extrator.py`)**
+   - Consome o endpoint de busca do portal de vagas da Gupy (`employability-portal.gupy.io/api/v1/jobs?jobName=dados`), que devolve JSON.
+   - **Paginação por `offset` e `limit`:** pede 10 vagas por vez e avança o offset até a API devolver uma lista vazia. Se a resposta não for `200`, o loop para e mostra o status.
+   - Usa `.get()` com valor padrão em cada campo, para uma vaga incompleta não derrubar a extração.
+   - Guarda título, empresa, formato de trabalho e link em `data/raw/vagas_gupy.csv`.
 
-## Tecnologias Utilizadas
+2. **Transform (`transformador.py`)**
+   - Traduz o formato de trabalho: `on-site`, `remote` e `hybrid` viram Presencial, Remoto e Híbrido.
+   - Deduz a **senioridade** pelo título da vaga com `.apply()` e palavras-chave (Júnior, Pleno, Sênior ou Não Informado).
+   - Salva em `data/processed/vagas_limpas.csv`.
+
+3. **Load (`carregador.py`)**
+   - Carrega o CSV tratado na tabela `vagas` de um banco SQLite (`data/processed/banco_de_vagas.db`) com `df.to_sql`.
+   - Usa `if_exists='replace'`: cada execução substitui a tabela inteira, então rodar de novo não duplica as linhas no banco.
+
+4. **Análise (`analise.py`)**
+   - Mostra a distribuição de vagas por senioridade e as 5 empresas com mais vagas abertas.
+
+## Tecnologias
 
 * **Python 3**
-* **Pandas** (Limpeza, Transformação e Análise de Dados)
-* **Requests** (Comunicação com a API)
-* **SQLite3** (Banco de Dados Relacional)
-* **Git & GitHub** (Versionamento de Código)
+* **Requests** (chamadas à API)
+* **Pandas** (limpeza, transformação e análise)
+* **SQLite3** (banco relacional local)
 
-## 📁 Estrutura de Diretórios
+## Estrutura de diretórios
 
 ```text
 projeto-etl-vagas-tech/
 │
-├── data/
-│   ├── raw/             # Dados brutos originais (Camada Bronze)
-│   └── processed/       # Dados limpos e Banco de Dados (Camada Prata)
+├── data/                # fora do Git (.gitignore)
+│   ├── raw/             # dado bruto da API
+│   └── processed/       # CSV tratado e banco SQLite
 │
 ├── src/
-│   ├── extrator.py      # Script de Extração (API)
-│   ├── transformador.py # Script de Limpeza (Pandas)
-│   ├── carregador.py    # Script de Carga (SQLite)
-│   └── analise.py       # Script de Análise Exploratória
+│   ├── extrator.py      # extração (API + paginação)
+│   ├── transformador.py # limpeza e transformação (Pandas)
+│   ├── carregador.py    # carga no SQLite
+│   └── analise.py       # resumo das vagas
 │
-├── .gitignore           # Oculta arquivos desnecessários/pesados do Git
-└── README.md            # Documentação do projeto
+├── .gitignore
+└── Readme.md
+```
 
-Execute os scripts na ordem do Pipeline ETL:
+## Como rodar
 
-Bash
-python extrator.py       # Passo 1: Extrair
-python transformador.py  # Passo 2: Limpar e Transformar
-python carregador.py     # Passo 3: Salvar no Banco de Dados
-python analise.py        # Passo 4: Ver os Insights do mercado
+```bash
+git clone https://github.com/SamuelzinPires/etl-vagas-tech.git
+cd etl-vagas-tech
+
+python -m venv venv
+.\venv\Scripts\Activate.ps1      # Windows PowerShell
+pip install requests pandas
+
+mkdir data/raw, data/processed   # as pastas de dados ficam fora do Git
+```
+
+Os scripts usam caminhos relativos (`../data/...`), por isso rodam de dentro da pasta `src/`, nesta ordem:
+
+```bash
+cd src
+python extrator.py       # 1. extrai as vagas da API
+python transformador.py  # 2. trata os dados
+python carregador.py     # 3. carrega no SQLite
+python analise.py        # 4. mostra o resumo
+```
+
+## Histórico
+
+A primeira versão (24/02/2026) raspava o HTML da página com **BeautifulSoup**. Em 27/02 o extrator passou a consumir a **API JSON** do portal: o dado já vem estruturado, a extração não depende do layout do site e a paginação fica simples (offset + limit). O BeautifulSoup não faz mais parte do código.
+
+## Limitações conhecidas
+
+- **Senioridade por trecho de palavra:** a regra procura `jr`, `pl` e `sr` em qualquer parte do título. Com isso, palavras como "Plataforma" e "Aplicações" fazem a vaga cair como Pleno, inclusive quando o título também diz Sênior (o teste de Pleno vem antes). A correção seria procurar palavras inteiras, com regex e `\b`.
+- **Sem deduplicação:** se a mesma vaga aparecer em duas páginas (a lista pode mudar durante a extração), ela entra duas vezes.
+- **Sem histórico:** cada execução substitui o resultado anterior, então não dá para comparar o mercado entre datas.
